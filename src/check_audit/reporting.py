@@ -10,7 +10,12 @@ from .core import AdversaryResult
 
 def _print_check(name: str, results: list[AdversaryResult]) -> None:
     missed = [result for result in results if result.check_accepted is True]
-    found = [result for result in results if result.witness is not None]
+    errors = [result for result in results if result.check_raised is not None]
+    found = [
+        result
+        for result in results
+        if result.witness is not None and result.check_raised is None
+    ]
     print(f"\n=== FALSIFICATION: check '{name}' ===")
     if missed:
         classes = ", ".join(result.defect_class for result in missed)
@@ -20,10 +25,40 @@ def _print_check(name: str, results: list[AdversaryResult]) -> None:
         )
         print(f"  Defect classes missed: {classes}")
         print("  -> The check tracks a neighbor of the goal, not the goal.")
+        if errors:
+            print(f"  Additional check errors (not verdicts): {len(errors)}")
+    elif errors:
+        print("STATUS: ERROR")
+        print(f"  The check raised on {len(errors)} supplied witnesses.")
+        print("  Those cases have no accept/reject verdict.")
     else:
         print("STATUS: PASS (on covered classes)")
         print(f"  The check rejects all {len(found)} violators with found witnesses.")
         print("  This does NOT mean the check is complete. See bounds below.")
+
+
+def _self_check_passes(
+    naive_results: list[AdversaryResult],
+    tracking_results: list[AdversaryResult],
+) -> bool:
+    expected_naive_misses = {"wrong_record_kept", "missing_key"}
+    naive_misses = {
+        result.defect_class for result in naive_results if result.check_accepted is True
+    }
+    tracking_misses = {
+        result.defect_class
+        for result in tracking_results
+        if result.check_accepted is True
+    }
+    check_errors = any(
+        result.check_raised is not None
+        for result in (*naive_results, *tracking_results)
+    )
+    return (
+        naive_misses == expected_naive_misses
+        and not tracking_misses
+        and not check_errors
+    )
 
 
 def render_text_report(
@@ -57,6 +92,10 @@ def render_text_report(
                 check = "-"
                 witness = "none"
                 verdict = "UNRESOLVED"
+            elif result.check_raised is not None:
+                check = "error"
+                witness = "found"
+                verdict = "ERROR"
             else:
                 check = "accepts" if result.check_accepted else "rejects"
                 witness = "found"
@@ -65,6 +104,8 @@ def render_text_report(
                 f"{result.name:<22}{result.defect_class:<24}"
                 f"{witness:<10}{check:<10}{verdict}"
             )
+            if result.check_raised is not None:
+                print(f"  exception: {result.check_raised}")
 
     print("\n=== Bounds on the negative ===")
     covered = ", ".join(adversary.defect_class for adversary in DEFAULT_ADVERSARIES)
@@ -76,10 +117,16 @@ def render_text_report(
         "  Passing means surviving these supplied adversaries, not proving correctness."
     )
 
-    naive_misses = sum(result.check_accepted is True for result in naive_results)
-    tracking_misses = sum(result.check_accepted is True for result in tracking_results)
+    naive_misses = {
+        result.defect_class for result in naive_results if result.check_accepted is True
+    }
+    tracking_misses = {
+        result.defect_class
+        for result in tracking_results
+        if result.check_accepted is True
+    }
     print("\n=== Harness self-check ===")
-    if naive_misses == 2 and tracking_misses == 0:
+    if _self_check_passes(naive_results, tracking_results):
         print("OK: the harness flags the weak check and clears the full-goal check.")
     else:
         print("FAILED: the observed demo results differ from the expected behavior.")

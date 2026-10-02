@@ -14,6 +14,7 @@ from hypothesis import strategies as st
 Record = dict[str, Any]
 Implementation = Callable[[list[Record]], list[Record]]
 Check = Callable[[list[Record], list[Record]], bool]
+RECORD_ACCESS_EXCEPTIONS = (KeyError, TypeError, AttributeError)
 
 record_strategy = st.fixed_dictionaries(
     {
@@ -43,6 +44,7 @@ class AdversaryResult:
     witness: list[Record] | None
     check_accepted: bool | None
     note: str = ""
+    check_raised: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
@@ -75,7 +77,7 @@ def satisfies_goal(inputs: Sequence[Record], output: Sequence[Record]) -> bool:
             if key in observed:
                 return False
             observed[key] = record["updated_at"]
-    except (KeyError, TypeError, AttributeError):
+    except RECORD_ACCESS_EXCEPTIONS:
         return False
 
     return set(observed) == set(expected) and all(
@@ -151,7 +153,20 @@ def audit(
             continue
 
         output = adversary.implementation(deepcopy(witness))
-        accepted = check(deepcopy(witness), output)
+        try:
+            accepted = check(deepcopy(witness), output)
+        except Exception as exc:
+            results.append(
+                AdversaryResult(
+                    name=adversary.name,
+                    defect_class=adversary.defect_class,
+                    witness=witness,
+                    check_accepted=None,
+                    note="check raised an exception",
+                    check_raised=f"{type(exc).__name__}: {exc}",
+                )
+            )
+            continue
         results.append(
             AdversaryResult(
                 adversary.name,
@@ -169,7 +184,7 @@ def check_no_duplicate_ids(_inputs: list[Record], output: list[Record]) -> bool:
     try:
         ids = [record["id"] for record in output]
         return len(ids) == len(set(ids))
-    except (KeyError, TypeError):
+    except RECORD_ACCESS_EXCEPTIONS:
         return False
 
 
@@ -190,6 +205,6 @@ def check_full_goal(inputs: list[Record], output: list[Record]) -> bool:
             )
             if actual != expected_max:
                 return False
-    except (KeyError, TypeError, ValueError, StopIteration):
+    except RECORD_ACCESS_EXCEPTIONS:
         return False
     return True

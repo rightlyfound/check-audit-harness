@@ -1,15 +1,23 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
 import check_audit.core as core
-from check_audit.adversaries import DEFAULT_ADVERSARIES, correct, first_wins
+from check_audit.adversaries import (
+    DEFAULT_ADVERSARIES,
+    UNCOVERED_CLASSES,
+    correct,
+    first_wins,
+    returns_all,
+)
 from check_audit.cli import main
 from check_audit.core import (
+    Adversary,
     AdversaryResult,
     audit,
     check_full_goal,
@@ -18,7 +26,7 @@ from check_audit.core import (
     records_strategy,
     satisfies_goal,
 )
-from check_audit.reporting import report_payload
+from check_audit.reporting import render_text_report, report_payload
 
 EXAMPLE = [
     {"id": 1, "updated_at": 2, "payload": "old"},
@@ -27,8 +35,26 @@ EXAMPLE = [
 ]
 
 
+class AttributeErrorRecord(dict):
+    def __getitem__(self, key):
+        raise AttributeError("record access failed")
+
+
 def test_correct_implementation_satisfies_goal() -> None:
     assert satisfies_goal(EXAMPLE, correct(EXAMPLE))
+
+
+def test_uncovered_classes_do_not_overlap_demo_adversaries() -> None:
+    covered_classes = {adversary.defect_class for adversary in DEFAULT_ADVERSARIES}
+    assert covered_classes.isdisjoint(UNCOVERED_CLASSES)
+
+
+def test_readme_defines_tie_breaking_as_outside_the_demo_goal() -> None:
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    assert "The bundled goal does not specify a payload tie-break" in readme
+    assert "demonstrates the audit method, not a complete specification" in readme
 
 
 def test_goal_rejects_wrong_timestamp_missing_key_and_duplicate() -> None:
@@ -46,6 +72,12 @@ def test_empty_input_has_empty_output() -> None:
 def test_malformed_output_is_not_accepted() -> None:
     assert not satisfies_goal(EXAMPLE, [{"id": 1}])
     assert not satisfies_goal(EXAMPLE, None)  # type: ignore[arg-type]
+
+
+def test_record_access_predicates_share_malformed_record_behavior() -> None:
+    malformed = AttributeErrorRecord()
+    for predicate in (satisfies_goal, check_no_duplicate_ids, check_full_goal):
+        assert predicate([malformed], [malformed]) is False
 
 
 @given(records_strategy, records_strategy)
@@ -83,6 +115,45 @@ def test_audit_distinguishes_neighbor_check_from_full_goal_check() -> None:
     assert naive_misses == {"wrong_record_kept", "missing_key"}
     assert all(result.witness is not None for result in tracking_results)
     assert all(result.check_accepted is False for result in tracking_results)
+
+
+def test_audit_reports_check_exception_as_error(capsys) -> None:
+    def raising_check(_inputs, _output):
+        raise RuntimeError("checker boom")
+
+    result = audit(
+        raising_check,
+        [DEFAULT_ADVERSARIES[0]],
+        input_strategy=st.just(EXAMPLE),
+        max_examples=1,
+    )[0]
+
+    assert result.check_accepted is None
+    assert result.check_raised == "RuntimeError: checker boom"
+    payload = report_payload([result], [], max_examples=1)
+    assert payload["checks"]["naive"][0]["check_raised"] == result.check_raised
+
+    render_text_report([result], [], max_examples=1)
+    output = capsys.readouterr().out
+    assert "STATUS: ERROR" in output
+    assert "ERROR" in output
+    assert "RuntimeError: checker boom" in output
+
+
+def test_self_check_rejects_two_misses_from_unexpected_classes(capsys) -> None:
+    synthetic_adversaries = [
+        Adversary("fake_first", "unexpected_a", first_wins),
+        Adversary("fake_all", "unexpected_b", returns_all),
+    ]
+    synthetic_results = audit(
+        lambda _inputs, _output: True,
+        synthetic_adversaries,
+        input_strategy=st.just(EXAMPLE),
+        max_examples=1,
+    )
+
+    render_text_report(synthetic_results, [], max_examples=1)
+    assert "FAILED: the observed demo results differ" in capsys.readouterr().out
 
 
 def test_api_dict_matches_cli_json_item_shape() -> None:
