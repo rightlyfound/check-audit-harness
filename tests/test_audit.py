@@ -34,6 +34,11 @@ EXAMPLE = [
 ]
 
 
+class AttributeErrorRecord(dict):
+    def __getitem__(self, key):
+        raise AttributeError("record access failed")
+
+
 def test_correct_implementation_satisfies_goal() -> None:
     assert satisfies_goal(EXAMPLE, correct(EXAMPLE))
 
@@ -58,6 +63,12 @@ def test_empty_input_has_empty_output() -> None:
 def test_malformed_output_is_not_accepted() -> None:
     assert not satisfies_goal(EXAMPLE, [{"id": 1}])
     assert not satisfies_goal(EXAMPLE, None)  # type: ignore[arg-type]
+
+
+def test_record_access_predicates_share_malformed_record_behavior() -> None:
+    malformed = AttributeErrorRecord()
+    for predicate in (satisfies_goal, check_no_duplicate_ids, check_full_goal):
+        assert predicate([malformed], [malformed]) is False
 
 
 @given(records_strategy, records_strategy)
