@@ -37,6 +37,30 @@ def _print_check(name: str, results: list[AdversaryResult]) -> None:
         print("  This does NOT mean the check is complete. See bounds below.")
 
 
+def _self_check_passes(
+    naive_results: list[AdversaryResult],
+    tracking_results: list[AdversaryResult],
+) -> bool:
+    expected_naive_misses = {"wrong_record_kept", "missing_key"}
+    naive_misses = {
+        result.defect_class for result in naive_results if result.check_accepted is True
+    }
+    tracking_misses = {
+        result.defect_class
+        for result in tracking_results
+        if result.check_accepted is True
+    }
+    check_errors = any(
+        result.check_raised is not None
+        for result in (*naive_results, *tracking_results)
+    )
+    return (
+        naive_misses == expected_naive_misses
+        and not tracking_misses
+        and not check_errors
+    )
+
+
 def render_text_report(
     naive_results: list[AdversaryResult],
     tracking_results: list[AdversaryResult],
@@ -93,10 +117,16 @@ def render_text_report(
         "  Passing means surviving these supplied adversaries, not proving correctness."
     )
 
-    naive_misses = sum(result.check_accepted is True for result in naive_results)
-    tracking_misses = sum(result.check_accepted is True for result in tracking_results)
+    naive_misses = {
+        result.defect_class for result in naive_results if result.check_accepted is True
+    }
+    tracking_misses = {
+        result.defect_class
+        for result in tracking_results
+        if result.check_accepted is True
+    }
     print("\n=== Harness self-check ===")
-    if naive_misses == 2 and tracking_misses == 0:
+    if _self_check_passes(naive_results, tracking_results):
         print("OK: the harness flags the weak check and clears the full-goal check.")
     else:
         print("FAILED: the observed demo results differ from the expected behavior.")

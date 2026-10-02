@@ -7,9 +7,15 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 import check_audit.core as core
-from check_audit.adversaries import DEFAULT_ADVERSARIES, correct, first_wins
+from check_audit.adversaries import (
+    DEFAULT_ADVERSARIES,
+    correct,
+    first_wins,
+    returns_all,
+)
 from check_audit.cli import main
 from check_audit.core import (
+    Adversary,
     AdversaryResult,
     audit,
     check_full_goal,
@@ -106,6 +112,22 @@ def test_audit_reports_check_exception_as_error(capsys) -> None:
     assert "STATUS: ERROR" in output
     assert "ERROR" in output
     assert "RuntimeError: checker boom" in output
+
+
+def test_self_check_rejects_two_misses_from_unexpected_classes(capsys) -> None:
+    synthetic_adversaries = [
+        Adversary("fake_first", "unexpected_a", first_wins),
+        Adversary("fake_all", "unexpected_b", returns_all),
+    ]
+    synthetic_results = audit(
+        lambda _inputs, _output: True,
+        synthetic_adversaries,
+        input_strategy=st.just(EXAMPLE),
+        max_examples=1,
+    )
+
+    render_text_report(synthetic_results, [], max_examples=1)
+    assert "FAILED: the observed demo results differ" in capsys.readouterr().out
 
 
 def test_api_dict_matches_cli_json_item_shape() -> None:
