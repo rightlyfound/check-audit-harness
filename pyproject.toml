@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "check-audit-harness"
+version = "0.1.0"
+description = "Audit whether validation checks detect seeded, goal-violating implementations."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["hypothesis>=6.100"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.8"]
+
+[project.scripts]
+check-audit = "check_audit.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
