@@ -10,7 +10,12 @@ from .core import AdversaryResult
 
 def _print_check(name: str, results: list[AdversaryResult]) -> None:
     missed = [result for result in results if result.check_accepted is True]
-    found = [result for result in results if result.witness is not None]
+    errors = [result for result in results if result.check_raised is not None]
+    found = [
+        result
+        for result in results
+        if result.witness is not None and result.check_raised is None
+    ]
     print(f"\n=== FALSIFICATION: check '{name}' ===")
     if missed:
         classes = ", ".join(result.defect_class for result in missed)
@@ -20,6 +25,12 @@ def _print_check(name: str, results: list[AdversaryResult]) -> None:
         )
         print(f"  Defect classes missed: {classes}")
         print("  -> The check tracks a neighbor of the goal, not the goal.")
+        if errors:
+            print(f"  Additional check errors (not verdicts): {len(errors)}")
+    elif errors:
+        print("STATUS: ERROR")
+        print(f"  The check raised on {len(errors)} supplied witnesses.")
+        print("  Those cases have no accept/reject verdict.")
     else:
         print("STATUS: PASS (on covered classes)")
         print(f"  The check rejects all {len(found)} violators with found witnesses.")
@@ -57,6 +68,10 @@ def render_text_report(
                 check = "-"
                 witness = "none"
                 verdict = "UNRESOLVED"
+            elif result.check_raised is not None:
+                check = "error"
+                witness = "found"
+                verdict = "ERROR"
             else:
                 check = "accepts" if result.check_accepted else "rejects"
                 witness = "found"
@@ -65,6 +80,8 @@ def render_text_report(
                 f"{result.name:<22}{result.defect_class:<24}"
                 f"{witness:<10}{check:<10}{verdict}"
             )
+            if result.check_raised is not None:
+                print(f"  exception: {result.check_raised}")
 
     print("\n=== Bounds on the negative ===")
     covered = ", ".join(adversary.defect_class for adversary in DEFAULT_ADVERSARIES)

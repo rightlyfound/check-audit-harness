@@ -43,6 +43,7 @@ class AdversaryResult:
     witness: list[Record] | None
     check_accepted: bool | None
     note: str = ""
+    check_raised: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
@@ -151,7 +152,20 @@ def audit(
             continue
 
         output = adversary.implementation(deepcopy(witness))
-        accepted = check(deepcopy(witness), output)
+        try:
+            accepted = check(deepcopy(witness), output)
+        except Exception as exc:
+            results.append(
+                AdversaryResult(
+                    name=adversary.name,
+                    defect_class=adversary.defect_class,
+                    witness=witness,
+                    check_accepted=None,
+                    note="check raised an exception",
+                    check_raised=f"{type(exc).__name__}: {exc}",
+                )
+            )
+            continue
         results.append(
             AdversaryResult(
                 adversary.name,
