@@ -52,6 +52,8 @@ Use `satisfies_goal(inputs, output)` to encode the reference property. Keep that
 
 The demonstration supplies four defect classes: `wrong_record_kept`, `missing_key`, `duplicate_key`, and `no_deduplication`. Its strategy generates lists of up to 25 records, IDs 1–4, timestamps 0–50, and payload strings up to six characters. The four named examples of gaps are tie-breaking ambiguity, input mutation, output aliasing, and partial key collision. These lists are illustrations, not exhaustive taxonomies.
 
+The bundled goal does not specify a payload tie-break when records share the maximum `updated_at`, so either record is acceptable; this example demonstrates the audit method, not a complete specification of deduplication semantics.
+
 A found witness is concrete evidence that the implementation violates the reference goal for that input. A clean result means only that the check rejected the supplied adversaries for which a witness was found. “No witness found” is unresolved; it does not establish that an implementation is correct.
 
 ## Development

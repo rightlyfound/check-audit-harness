@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from hypothesis import given
@@ -46,6 +47,14 @@ def test_correct_implementation_satisfies_goal() -> None:
 def test_uncovered_classes_do_not_overlap_demo_adversaries() -> None:
     covered_classes = {adversary.defect_class for adversary in DEFAULT_ADVERSARIES}
     assert covered_classes.isdisjoint(UNCOVERED_CLASSES)
+
+
+def test_readme_defines_tie_breaking_as_outside_the_demo_goal() -> None:
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    assert "The bundled goal does not specify a payload tie-break" in readme
+    assert "demonstrates the audit method, not a complete specification" in readme
 
 
 def test_goal_rejects_wrong_timestamp_missing_key_and_duplicate() -> None:
