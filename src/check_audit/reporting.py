@@ -22,9 +22,7 @@ def _print_check(name: str, results: list[AdversaryResult]) -> None:
         print("  -> The check tracks a neighbor of the goal, not the goal.")
     else:
         print("STATUS: PASS (on covered classes)")
-        print(
-            f"  The check rejects all {len(found)} violators with found witnesses."
-        )
+        print(f"  The check rejects all {len(found)} violators with found witnesses.")
         print("  This does NOT mean the check is complete. See bounds below.")
 
 

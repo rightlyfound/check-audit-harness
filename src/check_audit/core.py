@@ -174,5 +174,22 @@ def check_no_duplicate_ids(_inputs: list[Record], output: list[Record]) -> bool:
 
 
 def check_full_goal(inputs: list[Record], output: list[Record]) -> bool:
-    """A check that evaluates the declared goal directly."""
-    return satisfies_goal(inputs, output)
+    """Independently check the goal using per-id scans rather than accumulation."""
+    try:
+        input_ids = {record["id"] for record in inputs}
+        output_ids = [record["id"] for record in output]
+        if len(output_ids) != len(input_ids) or set(output_ids) != input_ids:
+            return False
+
+        for key in input_ids:
+            expected_max = max(
+                record["updated_at"] for record in inputs if record["id"] == key
+            )
+            actual = next(
+                record["updated_at"] for record in output if record["id"] == key
+            )
+            if actual != expected_max:
+                return False
+    except (KeyError, TypeError, ValueError, StopIteration):
+        return False
+    return True

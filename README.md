@@ -2,7 +2,7 @@
 
 A small Python tool for a practical verification problem: **does a validation check enforce its stated goal, or only a neighboring property?** It searches caller-supplied Hypothesis strategies for counterexamples from deliberately defective implementations, then reports which defects a check accepts.
 
-The included example concerns deduplicating records by `id` while preserving the maximum `updated_at`. A weak check that only rejects duplicate IDs misses wrong-record and missing-key defects; a full-goal check rejects the supplied adversaries.
+The included example concerns deduplicating records by `id` while preserving the maximum `updated_at`. A weak check that only rejects duplicate IDs misses wrong-record and missing-key defects; a separately implemented full-goal check rejects the supplied adversaries.
 
 > **Scope:** this is bounded adversarial testing, not a proof or certification. The audit cannot invent missing adversaries, and witness search cannot see inputs excluded by the supplied strategy.
 
@@ -21,7 +21,7 @@ To write a machine-readable result as well:
 check-audit demo --max-examples 500 --seed 17 --json-report audit.json
 ```
 
-The CLI prints falsification results before its supporting adversary tables, states the known coverage gaps, and ends with a self-check. `--seed` is optional; without it, Hypothesis uses its deterministic example generation for the bounded run.
+The CLI prints falsification results before its supporting adversary tables, states the known coverage gaps, and ends with a self-check. `--seed` is optional; without it, Hypothesis runs in derandomized mode for repeatability in the same environment. Changing Hypothesis versions or the input strategy can change generated examples. Use `--seed` to select an explicit run seed.
 
 ## Use the Python API
 
@@ -46,7 +46,7 @@ for result in results:
     print(result.to_dict())
 ```
 
-Use `satisfies_goal(inputs, output)` to encode the reference property. Keep that specification independent of the candidate check; otherwise the audit can reproduce the same mistake in both places. Custom checks take `(inputs, output)` and return `True` when they accept the output.
+Use `satisfies_goal(inputs, output)` to encode the reference property. Keep that specification independent of the candidate check; otherwise the audit can reproduce the same mistake in both places. In the bundled demo, `check_full_goal` independently computes each id's maximum by scanning the inputs, rather than calling the reference predicate. Custom checks take `(inputs, output)` and return `True` when they accept the output.
 
 ## What the bundled audit covers
 
